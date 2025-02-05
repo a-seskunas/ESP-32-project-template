@@ -1,1 +1,0 @@
-idf_component_register(SRCS ./alexa_ex.cpp INCLUDE_DIRS ".")
