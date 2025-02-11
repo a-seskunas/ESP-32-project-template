@@ -11,82 +11,87 @@
 
 namespace app
 {
-    typedef struct
-    {
-        esp_mqtt_event_id_t id;
-        void *data;
-    } MqttEventData_t;
+	typedef struct
+	{
+		esp_mqtt_event_id_t id;
+		void *data;
+	}MqttEventData_t;
 
-    using MqttEventCb_f = std::function<void(MqttEventData_t)>;
+	using MqttEventCb_f = std::function<void(MqttEventData_t)>;
 
-    class AppMqtt
-    {
-    private:
-        AppSensor *m_sensor;
-        esp_mqtt_client_handle_t m_client = nullptr;
-        std::string m_sensor_topic;
-        TaskHandle_t m_publish_handle = nullptr;
-        MqttEventCb_f m_event_cb;
+	class AppMqtt
+	{
+	private:
+		AppSensor *m_sensor;
+		esp_mqtt_client_handle_t m_client = nullptr;
+		std::string m_sensor_topic;
+		TaskHandle_t m_publish_handle = nullptr;
+		MqttEventCb_f m_event_cb;
 
-        void handleMqttData(esp_mqtt_event_handle_t event);
+		void handleMqttData(esp_mqtt_event_handle_t event);
 
-        static void mqttEventHandler(void *arg,
-                                     esp_event_base_t base,
-                                     int32_t event_id,
-                                     void *event_data);
+		static void mqttEventHandler(void *arg, esp_event_base_t base, int32_t event_id, void *event_data);
+		static void publishSensorState(void *param);
 
-        static void publishSensorState(void *param);
+	public:
+		AppMqtt(AppSensor *sensor) : m_sensor(sensor), m_sensor_topic(sensor->getName() + "/state")
+		{
+		}
 
-    public:
-        AppMqtt(AppSensor *sensor) : m_sensor(sensor), m_sensor_topic(sensor->getName() + "/state")
-        {
-        }
+		void init(MqttEventCb_f cb)
+		{
+			m_event_cb = cb;
+			esp_mqtt_client_config_t mqtt_cfg = {
+				.broker {
+					.address { 
+						.uri = "mqtt://192.xxx.x.xxx:1883"
+					}
+				}, 
+				.credentials { 
+					// MQTT_USER can be set on the command line with
+					// export MQTT_USER=\"<username>\"
+					.username = MQTT_USER, .client_id = m_sensor->getName().c_str(), 
+					        // MQTT_PWD can be set on the command line with
+						// export MQTT_PWD=<password>
+				                .authentication { .password = MQTT_PWD 
+						}
+				}
+			};
+			m_client = esp_mqtt_client_init(&mqtt_cfg);
+			esp_mqtt_client_register_event(m_client, MQTT_EVENT_ANY, mqttEventHandler, this);
+			xTaskCreate(publishSensorState, "publish", 4069, this, 5, &m_publish_handle);
+			vTaskSuspend(m_publish_handle);
+		}
 
-        void init(MqttEventCb_f cb)
-        {
-            m_event_cb = cb;
-            esp_mqtt_client_config_t mqtt_cfg = {
-                .host = CONFIG_MQTT_BROKER_IP,
-                .port = CONFIG_MQTT_PORT,
-                .client_id = m_sensor->getName().c_str(),
-                .username = MQTT_USER,
-                .password = MQTT_PWD};
-            m_client = esp_mqtt_client_init(&mqtt_cfg);
-            esp_mqtt_client_register_event(m_client, MQTT_EVENT_ANY, mqttEventHandler, this);
-            xTaskCreate(publishSensorState, "publish", 4096, this, 5, &m_publish_handle);
-            vTaskSuspend(m_publish_handle);
-        }
+		void start(void)
+		{
+			esp_mqtt_client_start(m_client);
+		}
+	};
 
-        void start(void)
-        {
-            esp_mqtt_client_start(m_client);
-        }
-    };
+	void AppMqtt::mqttEventHandler(void *arg, esp_event_base_t base, int32_t event_id, void *event_data)
+	{
+		AppMqtt *obj = reinterpret_cast<AppMqtt *>(arg);
 
-    void AppMqtt::mqttEventHandler(void *arg,
-                                   esp_event_base_t base,
-                                   int32_t event_id,
-                                   void *event_data)
-    {
-        AppMqtt *obj = reinterpret_cast<AppMqtt *>(arg);
-
-        switch (static_cast<esp_mqtt_event_id_t>(event_id))
-        {
-        case MQTT_EVENT_CONNECTED:
-            esp_mqtt_client_subscribe(obj->m_client, obj->m_sensor_topic.c_str(), 1);
-            vTaskResume(obj->m_publish_handle);
-            break;
-        case MQTT_EVENT_DATA:
-            obj->handleMqttData(reinterpret_cast<esp_mqtt_event_handle_t>(event_data));
-            break;
-        case MQTT_EVENT_DISCONNECTED:
-            vTaskSuspend(obj->m_publish_handle);
-            break;
-        default:
-            break;
-        }
-        obj->m_event_cb({static_cast<esp_mqtt_event_id_t>(event_id), event_data});
-    }
+		switch (static_cast<esp_mqtt_event_id_t>(event_id))
+		{
+		case MQTT_EVENT_CONNECTED:
+			esp_mqtt_client_subscribe(obj->m_client, obj->m_sensor_topic.c_str(), 1);
+                        vTaskResume(obj->m_publish_handle);
+                        break;
+                case MQTT_EVENT_DATA:
+                        obj->handleMqttData(reinterpret_cast<esp_mqtt_event_handle_t>(event_data));
+                        break;
+                case MQTT_EVENT_DISCONNECTED:
+                        vTaskSuspend(obj->m_publish_handle);
+                        break;
+                case MQTT_EVENT_ERROR:
+			break;
+                default:
+                        break;
+		}
+		obj->m_event_cb({static_cast<esp_mqtt_event_id_t>(event_id), event_data});
+	}
 
     void AppMqtt::handleMqttData(esp_mqtt_event_handle_t event)
     {
@@ -108,4 +113,4 @@ namespace app
             }
         }
     }
-}
+}//end namespace
