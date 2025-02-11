@@ -2,7 +2,7 @@ menu "Application settings"
 
     config MQTT_BROKER_IP
         string "IP of the MQTT broker to connect to"
-        default "10.1.1.10"
+        default "192.168.1.173"
         help
             The local network IP of the machine where you run MQTT broker
 
@@ -11,11 +11,4 @@ menu "Application settings"
         default 1883
         help
             In general, port 1883 is for plaintext MQTT connections (no encryption).
-
-    config MQTT_CLIENT_IDENTIFIER
-        string "The MQTT client identifier used in this example"
-        default "sensor-0"
-        help
-            The MQTT client identifier used in this example. Each client identifier must be unique.
-    
 endmenu

@@ -41,23 +41,24 @@ namespace app
 		void init(MqttEventCb_f cb)
 		{
 			m_event_cb = cb;
+
 			esp_mqtt_client_config_t mqtt_cfg = {
-				.broker {
-					.address { 
-						.uri = "mqtt://192.xxx.x.xxx:1883"
-					}
-				}, 
-				.credentials { 
-					// MQTT_USER can be set on the command line with
-					// export MQTT_USER=\"<username>\"
-					.username = MQTT_USER, .client_id = m_sensor->getName().c_str(), 
-					        // MQTT_PWD can be set on the command line with
-						// export MQTT_PWD=<password>
-				                .authentication { .password = MQTT_PWD 
-						}
-				}
-			};
-			m_client = esp_mqtt_client_init(&mqtt_cfg);
+                                .broker {
+                                        .address {
+                                                .uri = "mqtt://192.xxx.x.xxx:1883"
+                                        }
+                                },
+                                .credentials {
+                                        // MQTT_USER can be set on the command line with
+                                        // export MQTT_USER=\"<username>\"
+                                        .username = MQTT_USER, .client_id = m_sensor->getName().c_str(),
+                                                // MQTT_PWD can be set on the command line with
+                                                // export MQTT_PWD=<password>
+                                                .authentication { .password = MQTT_PWD
+                                                }
+                                }
+                        };
+		        m_client = esp_mqtt_client_init(&mqtt_cfg);
 			esp_mqtt_client_register_event(m_client, MQTT_EVENT_ANY, mqttEventHandler, this);
 			xTaskCreate(publishSensorState, "publish", 4069, this, 5, &m_publish_handle);
 			vTaskSuspend(m_publish_handle);
@@ -102,7 +103,6 @@ namespace app
     void AppMqtt::publishSensorState(void *param)
     {
         AppMqtt *obj = reinterpret_cast<AppMqtt *>(param);
-
         while (true)
         {
             vTaskDelay(pdMS_TO_TICKS(3000));
